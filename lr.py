@@ -5,6 +5,12 @@ from sklearn.model_selection import train_test_split
 from statsmodels.regression.linear_model import OLS
 import seaborn as sns
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from statsmodels.graphics.regressionplots import *
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import cross_validate
+
 
 class LR:
 	global df 
@@ -21,12 +27,28 @@ class LR:
 		# verbosity
 		self.verbose = verbose
 
-
-	def preprocessing(self):
+	def __preprocessing(self):
 		PATH = self.dataset
+		df = pd.read_csv(PATH)
+		for col in df.columns.tolist():
+		    if df[col].isna().sum() > 0:
+		        print('NaN values found in column : ', col)
+		        #drop NA values
+		        df = df.dropna()
+		        #reset the index
+		        df = df[np.isfinite(california).all(1)].reset_index(drop="True")
+		    else:
+		        print('No NaN values found in column : ', col)
 
-	def show_output():
-		pass
+		for col,dtype in dict(df.dtypes).items():
+		    if dtype == np.dtype('O'):
+		        print('Handling object dtype column: \"{}" in design matrix with One Hot Encoding'.format(col))
+		        # variable to represent the collection of one hot encoded columns
+		        ohe = pd.get_dummies(df, drop_first=True)
+		        df = df.drop(col,axis=1)
+		        df = pd.concat([df,ohe],axis=1)
+
+		return df
 
 	def __processSubset(self, feature_set):
    		# Fit model on feature_set and calculate RSS
@@ -40,9 +62,8 @@ class LR:
 
 	    return {"model":regr, "evaluation metric {}".format(self.eval_metric):RSS}
 
-
 	def __getBest(k):
-    
+		# get best subset from collection of models
 		tic = time.time()
 
 		results = []
@@ -62,6 +83,14 @@ class LR:
 		# Return the best model, along with some other useful information about the model
 		return best_model
 
+	def __crossvalidation(self):
+		
+		models_best = pd.DataFrame(columns=["{}".format(self.eval_metric), "model"])
 
+		tic = time.time()
+		for i in range(1,8):
+		    models_best.loc[i] = getBest(i)
 
+		toc = time.time()
+		print("Total elapsed time:", (toc-tic), "seconds.")
 
