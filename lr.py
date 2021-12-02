@@ -10,6 +10,12 @@ from statsmodels.formula.api import ols
 from statsmodels.graphics.regressionplots import *
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import cross_validate
+import itertools
+import time
+
+#TODO: replace all values for y & X with response and design matrix
+#TODO: test cross validation and different metrics provided in object instantiation
+#TODO: add plot functions from scratch paper2
 
 
 class LR:
@@ -26,6 +32,17 @@ class LR:
 		self.dataset = dataset
 		# verbosity
 		self.verbose = verbose
+
+
+		df = self.__preprocessing()
+		models = self.__crossvalidation()
+
+		print(models_best.loc[2, "model"].summary())
+
+	# def __new__(self, dataset, response, eval_metric, verbose=0):
+		
+
+
 
 	def __preprocessing(self):
 		PATH = self.dataset
@@ -52,6 +69,11 @@ class LR:
 
 	def __processSubset(self, feature_set):
    		# Fit model on feature_set and calculate RSS
+
+   		#TODO: specify the response column for y
+   		#TODO: specify the design matrix for X
+
+
 	    model = sm.OLS(y,X[list(feature_set)])
 	    regr = model.fit()
 	    
@@ -62,14 +84,14 @@ class LR:
 
 	    return {"model":regr, "evaluation metric {}".format(self.eval_metric):RSS}
 
-	def __getBest(k):
+	def __getBest(self,k):
 		# get best subset from collection of models
 		tic = time.time()
 
 		results = []
 
 		for combo in itertools.combinations(X.columns, k):
-			results.append(processSubset(combo))
+			results.append(self.__processSubset(combo))
 
 		# Wrap everything up in a nice dataframe
 		models = pd.DataFrame(results)
@@ -89,8 +111,16 @@ class LR:
 
 		tic = time.time()
 		for i in range(1,8):
-		    models_best.loc[i] = getBest(i)
+		    models_best.loc[i] = self.__getBest(i)
 
 		toc = time.time()
 		print("Total elapsed time:", (toc-tic), "seconds.")
 
+		return models_best
+
+
+
+
+if __name__ == "__main__":
+	x = LR(dataset="loan_data.csv",response="int.rate",eval_metric="RSS")
+	x
