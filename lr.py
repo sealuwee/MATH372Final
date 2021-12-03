@@ -16,17 +16,29 @@ import time
 #TODO: replace all values for y & X with response and design matrix
 #TODO: test cross validation and different metrics provided in object instantiation
 #TODO: add plot functions from scratch paper2
-
+#TODO/Stretch: write preprocessing for ranks
 
 class LR:
-	global df 
-	# starts as none until df is committed on object instantiation
+	# global variables to represent the dataframe
+	# X represents the design matrix
+	# y represents the repsonse
+
+	global df
+	global X
+	global y 
 	df = None
+	X = None
+	y = None
 
 	def __init__(self, dataset, response, eval_metric, verbose=0):
 		# string that represents the column in the dataset that you would like to specifty as the response.
 		self.response = response
 		# default eval metric = , otherwise unless specified as something else
+		# preferable eval metric == 
+		# ridge+lasso increase RSS because ew're worried about overfitting
+		#TODO: need argument that specifies inference or prediction 
+		# if inference == different way for model selection lasso for variability
+		# Mallows CP AIC BIC
 		self.eval_metric = eval_metric
 		# string that represents a path to the dataset
 		self.dataset = dataset
@@ -34,15 +46,10 @@ class LR:
 		self.verbose = verbose
 
 
-		df = self.__preprocessing()
+		df,X,y = self.__preprocessing()
 		models = self.__crossvalidation()
 
 		print(models_best.loc[2, "model"].summary())
-
-	# def __new__(self, dataset, response, eval_metric, verbose=0):
-		
-
-
 
 	def __preprocessing(self):
 		PATH = self.dataset
@@ -65,17 +72,32 @@ class LR:
 		        df = df.drop(col,axis=1)
 		        df = pd.concat([df,ohe],axis=1)
 
-		return df
+   		#TODO: specify the response column for y
+   		#TODO: specify the design matrix for X
+   		y = df[str(self.response)]
+		y = y.loc[:,~y.columns.duplicated()]
+		X = df.drop(str(self.response),axis=1)
+
+		return df, X, y
 
 	def __processSubset(self, feature_set):
    		# Fit model on feature_set and calculate RSS
 
-   		#TODO: specify the response column for y
-   		#TODO: specify the design matrix for X
-
-
 	    model = sm.OLS(y,X[list(feature_set)])
 	    regr = model.fit()
+	    #TODO: 
+	    #within a certain # of predictors 
+	    #using best subset selection
+	    #all the metrics will give you the same answers
+	    #as long as you specify the amount of predictors in getBest(k)
+
+	    #inputs being the RSS and # pof predictors
+	    #in this case of this project we want 
+
+	    #more preds = higher AIC, etc.
+	    #can't tell unless you compare the models by the amount of predictors
+	    #take the best N predictor model vs. M predictor model
+	    #plot a chart with X being the # preds Y being AIC value
 	    
 	    if self.eval_metric == "RSS":
 	    	RSS = ((regr.predict(X[list(feature_set)]) - y) ** 2).sum()
@@ -118,7 +140,11 @@ class LR:
 
 		return models_best
 
+	def plot(self):
+		#TODO: add arguments 
+		# ideally we want to write one function to plot things based on what we specify in the arguments
 
+		pass
 
 
 if __name__ == "__main__":
