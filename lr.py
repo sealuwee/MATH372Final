@@ -13,6 +13,10 @@ from sklearn.model_selection import cross_validate
 import itertools
 import time
 
+# going to try interfacing R to use regsubsets()
+import rpy2
+# or maybe we dont have to
+
 #TODO: replace all values for y & X with response and design matrix
 #TODO: test cross validation and different metrics provided in object instantiation
 #TODO: add plot functions from scratch paper2
@@ -22,36 +26,124 @@ class LR:
 	# global variables to represent the dataframe
 	# X represents the design matrix
 	# y represents the repsonse
-
+	# k represents the number of features after preprocessing
+	global k
 	global df
 	global X
-	global y 
+	global y
+	global _df 
 	df = None
 	X = None
 	y = None
+	k = 0
+	_df = None
+	_plotdf = None
 
-	def __init__(self, dataset, response, eval_metric, verbose=0):
+	def __init__(self, dataset, response, predcition=True, eval_metric='RSS', verbose=0):
 		# string that represents the column in the dataset that you would like to specifty as the response.
 		self.response = response
 		# default eval metric = , otherwise unless specified as something else
 		# preferable eval metric == 
-		# ridge+lasso increase RSS because ew're worried about overfitting
+		# ridge+lasso increase RSS because we're worried about overfitting
 		#TODO: need argument that specifies inference or prediction 
 		# if inference == different way for model selection lasso for variability
 		# Mallows CP AIC BIC
+		self.prediction = prediction
+		#unless otherwise stated, prediction will be done by default.
+
+		# either RSS or R_squared
 		self.eval_metric = eval_metric
 		# string that represents a path to the dataset
 		self.dataset = dataset
-		# verbosity
+		# verbosity, in case you do not want to see that many graphs 0 for bare minimum, any number greater than 0 for verbose
 		self.verbose = verbose
 
+		self.__preprocessing()
+		models = self.__getBestModels()
 
-		df,X,y = self.__preprocessing()
-		models = self.__crossvalidation()
+		# the verbose option allows the user to determine how much information will be presented and accessible on object instantiation.
+		global _plotdf
 
-		print(models_best.loc[2, "model"].summary())
+		if self.verbose > 0:
+			# The verbose option provides a dataframe with all scores
+			if self.eval_metric != None:
+				# Instantiate new dataframe to add columnar values for the best scores for all eval metrics for plotting purposes.
+				# donot plot RSS/RSquared
+				_df = models[models.groupby('num_features')['RSS'].transform(min) == models['RSS']]
+				_df['min_RSS'] = _df.groupby('num_features')['RSS'].transform(min)
 
+				_df = models[models.groupby('num_features')['R_squared'].transform(max) == models['R_squared']]
+				_df['max_R_squared'] = _df.groupby('num_features')['R_squared'].transform(max)
+
+				_df = models[models.groupby('num_features')['AIC'].transform(min) == models['AIC']]
+				_df['min_AIC'] = _df.groupby('num_features')['AIC'].transform(min)
+
+				_df = models[models.groupby('num_features')['BIC'].transform(min) == models['BIC']]
+				_df['min_BIC'] = _df.groupby('num_features')['BIC'].transform(min)
+
+				_df = models[models.groupby('num_features')['Adjusted_R_squared'].transform(max) == models['Adjusted R_squared']]
+				_df['max_Adjusted_R_squared'] = _df.groupby('num_features')['Adjusted_R_squared'].transform(max)
+
+			else:
+				print("\n The following eval metrics are required to be specified during object instantiation: \
+					   \n eval_metric params : \
+					   \n RSS , R_squared, AIC, BIC, adjR_squared \
+					   \n Default = RSS ")
+
+		# maybe only make a plot that shows all the metrics
+
+		else: 
+			# In the non verbose option we only populate a dataframe with the user's chosen eval metric for plotting purposes.
+			if self.eval_metric != None:
+				if self.eval_metric=='RSS':
+					_df = models[models.groupby('num_features')['RSS'].transform(min) == models['RSS']]
+					_df['min_RSS'] = _df.groupby('num_features')['RSS'].transform(min)
+					
+				if self.eval_metric=='R_squared':
+					_df = models[models.groupby('num_features')['R_squared'].transform(max) == models['R_squared']]
+					_df['max_R_squared'] = _df.groupby('num_features')['R_squared'].transform(max)
+
+				if self.eval_metric=='AIC':
+					_df = models[models.groupby('num_features')['AIC'].transform(min) == models['AIC']]
+					_df['min_AIC'] = _df.groupby('num_features')['AIC'].transform(min)
+
+
+				if self.eval_metric=='BIC':
+					_df = models[models.groupby('num_features')['BIC'].transform(min) == models['BIC']]
+					_df['min_BIC'] = _df.groupby('num_features')['BIC'].transform(min)
+
+				if self.eval_metric=='adjR_squared':
+					_df = models[models.groupby('num_features')['Adjusted_R_squared'].transform(max) == models['Adjusted R_squared']]
+					_df['max_Adjusted_R_squared'] = _df.groupby('num_features')['Adjusted_R_squared'].transform(max)
+	
+			else:
+				print("\n The following eval metrics are required to be specified during object instantiation: \
+					   \n eval_metric params : \
+					   \n RSS , R_squared, AIC, BIC, adjR_squared \
+					   \n Default = RSS ")
+
+		if self.verbose > 0:
+			self.__displayDataFrame(_df,10)
+			#TODO: PLOT FUNCTION HERE
+		else:
+			self.__displayDataFrame(_df,3)
+			#TODO: PLOT FUNCTION HERE
+
+
+	# helper functions for display purposes
+	def __displayDataFrame(self,df,n):
+		#displays n results from a resulting dataframe
+		display(df.head(n))
+
+	def __displaySummary(self,model):
+		model.summary()
+
+	# private functions in order of operations
 	def __preprocessing(self):
+		global df
+		global y
+		global X
+
 		PATH = self.dataset
 		df = pd.read_csv(PATH)
 		for col in df.columns.tolist():
@@ -74,79 +166,223 @@ class LR:
 
    		#TODO: specify the response column for y
    		#TODO: specify the design matrix for X
+
    		y = df[str(self.response)]
 		y = y.loc[:,~y.columns.duplicated()]
 		X = df.drop(str(self.response),axis=1)
 
 		return df, X, y
 
-	def __processSubset(self, feature_set):
+	def __processSubset(self,X,Y):
    		# Fit model on feature_set and calculate RSS
 
-	    model = sm.OLS(y,X[list(feature_set)])
-	    regr = model.fit()
-	    #TODO: 
-	    #within a certain # of predictors 
-	    #using best subset selection
-	    #all the metrics will give you the same answers
-	    #as long as you specify the amount of predictors in getBest(k)
+   		model = sm.OLS(Y,X)
+   		model = model.fit()
+	    RSS = ((model.predict(X) - y) ** 2).sum()
+    	R_squared = model.rsquared
+    	# AIC = model.aic
+    	# BIC = model.bic
+    	# adj_R_squared = model.rsquared_adj
 
-	    #inputs being the RSS and # pof predictors
-	    #in this case of this project we want 
+	    return model,RSS,R_squared
 
-	    #more preds = higher AIC, etc.
-	    #can't tell unless you compare the models by the amount of predictors
-	    #take the best N predictor model vs. M predictor model
-	    #plot a chart with X being the # preds Y being AIC value
-	    
-	    if self.eval_metric == "RSS":
-	    	RSS = ((regr.predict(X[list(feature_set)]) - y) ** 2).sum()
+	    # ,AIC,BIC,adj_R_squared
 
-	    #TODO: write more conditional statements based on what eval metric is stated by the user
-
-	    return {"model":regr, "evaluation metric {}".format(self.eval_metric):RSS}
-
-	def __getBest(self,k):
+	def __exhaustiveSubsetSelection(self,X,Y):
 		# get best subset from collection of models
-		tic = time.time()
+		global k
+		k = len(X.columns.tolist())
+		models, feature_list, num_features = [],[],[]
+		# RSS_list, R_squared_list, AIC_list, BIC_list, adj_R_squared_list = [],[],[],[],[]
 
-		results = []
+    	#Looping over all possible combinations: from 1 to k
 
-		for combo in itertools.combinations(X.columns, k):
-			results.append(self.__processSubset(combo))
+	    for combo in itertools.combinations(X.columns,k):
+	        result = self.__processSubset(X[list(combo)],Y) 
+	        models.append(result[0])
+	        RSS_list.append(result[1])                 
+	        R_squared_list.append(result[2])
+	        # AIC_list.append(result[3])
+	        # BIC_list.append(results[4])
+	        # adj_R_squared_list.append(results[5])
+	        feature_list.append(combo)
+	        num_features.append(len(combo))   
 
-		# Wrap everything up in a nice dataframe
-		models = pd.DataFrame(results)
+		# return a dataframe of best subset selection
 
-		# Choose the model with the highest RSS
-		best_model = models.loc[models['RSS'].argmin()]
+		return pd.DataFrame({'model': models,
+							 'num_features': num_features,
+							 'RSS': RSS_list, 
+							 'R_squared':R_squared_list,
+							 # 'AIC': AIC_list,
+							 # 'BIC': BIC_list,
+							 # 'Adjusted_R_squared': adj_R_squared_list,
+							 'features':feature_list})
 
-		toc = time.time()
-		print("Processed", models.shape[0], "models on", k, "predictors in", (toc-tic), "seconds.")
+	def __computeModelComparison(self, df):
+		m = len(y)
+		p = len(X.columns)
+		hat_sigma_squared = (1/(m - p -1)) * min(_df['RSS'])
 
-		# Return the best model, along with some other useful information about the model
-		return best_model
+		AIC = (1/(m*hat_sigma_squared)) * (df['RSS'] + 2 * df['num_features'] * hat_sigma_squared )
+		BIC = (1/(m*hat_sigma_squared)) * (df['RSS'] +  np.log(m) * df['num_features'] * hat_sigma_squared )
+    	C_p = (1/m) * (df['RSS'] * df['num_features'] * hat_sigma_squared)
+    	Adjusted_R_squared = 1 - ( (1 - df['R_squared'])*(m-1)/(m-df['num_features'] -1))
 
-	def __crossvalidation(self):
+    	return AIC, BIC, C_p, Adjusted_R_squared
+
+
+	def __getBestModels(self):
 		
 		models_best = pd.DataFrame(columns=["{}".format(self.eval_metric), "model"])
-
-		tic = time.time()
-		for i in range(1,8):
-		    models_best.loc[i] = self.__getBest(i)
-
-		toc = time.time()
-		print("Total elapsed time:", (toc-tic), "seconds.")
+		for i in range(1,k+1):
+		    models_best.loc[i] = self.__exhaustiveSubsetSelection(i)
 
 		return models_best
 
-	def plot(self):
+	def __plotFittedValuesAndResiduals(self):
+		#TODO: add plotting here once we're ready to start working with outliers
+
+		f, ax = plt.subplots(figsize=(13, 13))
+		sns.despine(f, left=True, bottom=True)
+		sns.scatterplot(x=model_1.fittedvalues, y=model_1.resid,
+		            palette="ch:r=-.2,d=.3_r",
+		            sizes=(1, 8), linewidth=0, ax=ax)
+		plt.axhline(y=0,color='red')
+		plt.xlabel("fitted values", fontsize=20)
+		plt.ylabel("residuals",fontsize=20)
+		plt.show()
+
+	def model(self):
+		# returns the best model chosen by the program
+
+		return
+
+	def plot_RSS_and_R_squared(self, df):
+		# if you wanted to plot RSS and R squared you can.
+		fig = plt.figure(figsize = (16,6))
+		ax = fig.add_subplot(1,2,1)
+		ax.scatter(df['num_features'],df['RSS'], alpha = .2, color = 'darkblue' )
+		ax.plot(df['num_features'],df['min_RSS'],color = 'r', label = 'Best subset')
+		ax.set_xlabel('# Features')
+		ax.set_ylabel('RSS')
+		ax.set_title('RSS - Best subset selection')
+		ax.legend()
+
+		ax = fig.add_subplot(2, 3, 2)
+		ax.scatter(df.['num_features'],df.['R_squared'], alpha = .2, color = 'darkblue' )
+		ax.plot(df['num_features'],df['max_R_squared'],color = 'r', label = 'Best subset')
+		ax.set_xlabel('# Features')
+		ax.set_ylabel('R squared')
+		ax.set_title('R_squared - Best subset selection')
+		ax.legend()
+
+		plt.show()
+
+	def plot_best_subset_selection(self,df):
 		#TODO: add arguments 
 		# ideally we want to write one function to plot things based on what we specify in the arguments
 
-		pass
+		if self.verbose > 0:
+
+			fig = plt.figure(figsize = (16,6))
+			ax = fig.add_subplot(2, 3, 1)
+			
+			# plots should give you new information / meaningful information
+			# incresed complexity versus lower error.
+
+			# ax.scatter(df['num_features'],df['RSS'], alpha = .2, color = 'darkblue' )
+			# ax.plot(df['num_features'],df['min_RSS'],color = 'r', label = 'Best subset')
+			# ax.set_xlabel('# Features')
+			# ax.set_ylabel('RSS')
+			# ax.set_title('RSS - Best subset selection')
+			# ax.legend()
+
+			# ax = fig.add_subplot(2, 3, 2)
+			# ax.scatter(df.['num_features'],df.['R_squared'], alpha = .2, color = 'darkblue' )
+			# ax.plot(df['num_features'],df['max_R_squared'],color = 'r', label = 'Best subset')
+			# ax.set_xlabel('# Features')
+			# ax.set_ylabel('R squared')
+			# ax.set_title('R_squared - Best subset selection')
+			# ax.legend()
+
+			ax = fig.add_subplot(2, 2, 1)
+			ax.scatter(df['num_features'],df['AIC'], alpha = .2, color = 'darkblue' )
+			ax.plot(df['num_features'],df['min_AIC'],color = 'r', label = 'Best subset')
+			ax.set_xlabel('# Features')
+			ax.set_ylabel('AIC')
+			ax.set_title('AIC - Best subset selection')
+			ax.legend()
+
+			ax = fig.add_subplot(2, 2, 2)
+			ax.scatter(df['num_features'],df['BIC'], alpha = .2, color = 'darkblue' )
+			ax.plot(df['num_features'],df['min_BIC'],color = 'r', label = 'Best subset')
+			ax.set_xlabel('# Features')
+			ax.set_ylabel('BIC')
+			ax.set_title('BIC - Best subset selection')
+			ax.legend()
+
+			ax = fig.add_subplot(2, 2, 3)
+			ax.scatter(df['num_features'],df['Adjusted_R_squared'], alpha = .2, color = 'darkblue' )
+			ax.plot(df['num_features'],df['max_Adjusted_R_squared'],color = 'r', label = 'Best subset')
+			ax.set_xlabel('# Features')
+			ax.set_ylabel('Adjusted R squared')
+			ax.set_title('Adjusted R squared - Best subset selection')
+			ax.legend()
+
+		else: 
+
+			fig = plt.figure(figsize = (16,6))
+
+			if self.eval_metric == "RSS":
+				ax = fig.add_subplot(1, 1, 1)
+				ax.scatter(df.num_features,df.RSS, alpha = .2, color = 'darkblue' )
+				ax.plot(df.num_features,df.min_RSS,color = 'r', label = 'Best subset')
+				ax.set_xlabel('# Features')
+				ax.set_ylabel('RSS')
+				ax.set_title('RSS - Best subset selection')
+				ax.legend()
+
+			if self.eval_metric == "R_squared":
+				ax = fig.add_subplot(1, 1, 1)
+				ax.scatter(df.['num_features'],df.['R_squared'], alpha = .2, color = 'darkblue' )
+				ax.plot(df['num_features'],df['max_R_squared'],color = 'r', label = 'Best subset')
+				ax.set_xlabel('# Features')
+				ax.set_ylabel('R squared')
+				ax.set_title('R_squared - Best subset selection')
+				ax.legend()
+
+
+			if self.eval_metric == "AIC":
+				ax = fig.add_subplot(1, 1, 1)
+				ax.scatter(df['num_features'],df['AIC'], alpha = .2, color = 'darkblue' )
+				ax.plot(df['num_features'],df['min_AIC'],color = 'r', label = 'Best subset')
+				ax.set_xlabel('# Features')
+				ax.set_ylabel('AIC')
+				ax.set_title('AIC - Best subset selection')
+				ax.legend()
+
+			if self.eval_metric == "BIC":
+				ax = fig.add_subplot(1, 1, 1)
+				ax.scatter(df['num_features'],df['BIC'], alpha = .2, color = 'darkblue' )
+				ax.plot(df['num_features'],df['min_BIC'],color = 'r', label = 'Best subset')
+				ax.set_xlabel('# Features')
+				ax.set_ylabel('BIC')
+				ax.set_title('BIC - Best subset selection')
+				ax.legend()
+
+			if self.eval_metric == "Adjusted_R_squared":
+				ax = fig.add_subplot(1, 1, 1)
+				ax.scatter(df['num_features'],df['Adjusted_R_squared'], alpha = .2, color = 'darkblue' )
+				ax.plot(df['num_features'],df['max_Adjusted_R_squared'],color = 'r', label = 'Best subset')
+				ax.set_xlabel('# Features')
+				ax.set_ylabel('Adjusted R squared')
+				ax.set_title('Adjusted R squared - Best subset selection')
+				ax.legend()
+		
+		plt.show()
 
 
 if __name__ == "__main__":
-	x = LR(dataset="loan_data.csv",response="int.rate",eval_metric="RSS")
+	x = LR(dataset="loans_small.csv",response="int.rate",prediction=True, eval_metric="R_squared", verbose=0)
 	x
