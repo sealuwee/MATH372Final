@@ -35,6 +35,8 @@ class LR:
 	global _df
 	global fw_df 
 	global models_df
+	global df1
+	global best_model
 	df = None
 	X = None
 	y = None
@@ -42,6 +44,8 @@ class LR:
 	_df = None
 	fw_df = None
 	models_df = None
+	df1 = None
+	best_model = None
 
 	def __init__(self, dataset, response, selection='forward', prediction=True, eval_metric='RSS', verbose=0):
 		# string that represents a path to the dataset
@@ -69,7 +73,9 @@ class LR:
 		# this would require that this function has 2^n complexity
 		# models = self.__exhaustiveSubsetSelection(4)
 		# best_model = self.__getBestModel()
-
+		global df1
+		global best_model
+		print(X.columns)
 		if self.selection == 'forward':
 			self.__forwardSelection()
 			# print(len(models))
@@ -81,16 +87,58 @@ class LR:
 			if verbose > 0:
 				self.plot_RSS_and_R_squared(fw_df)
 				self.__displayDataFrame(fw_df,5)
+				print('\nPerforming Model comparisons with the chosen metric: {}\n'.format(self.eval_metric))
+				print('\nCalling the method .model_selection() will provide an accessible dataframe\n')
+				df1 = self.__computeModelComparison(fw_df)
+				print('\nSince verbosity is set to {} the dataframe can be seen below before it has been sorted'.format(self.verbose))
+				self.__displayDataFrame(df1,k)
+				print('\nNow we will plot these model comparisons \n \
+					Since verbose = {},\n \
+					We are going to show the plots for all the eval metrics'.format(self.verbose))
+				self.__plot_model_selection(df1)
 
 			else:
 				print('Skipping plotting RSS and R_squared values for {} selection'.format(self.selection))
 				print('Performing Model comparisons with the chosen metric: {}'.format(self.eval_metric))
+				print('\nCalling the method .model_selection() will provide an accessible dataframe\n')
+				df1 = self.__computeModelComparison(fw_df)
+				print('\nSince verbosity is set to {} the dataframe can be seen below before it has been sorted'.format(self.verbose))
+				self.__displayDataFrame(df1,3)
+				print('\nNow we will plot these model comparisons \n \
+					Since verbose = {},\n \
+					We are only going to show the plot for the chosen eval_metric = {}'.format(self.verbose,self.eval_metric))
+				# self.__plot_model_selection(df1)
+
+			# pull out the best model from the dataframe we created
+			best_model = self.__getBestModel(df1)
+			# print(best_model.columns)
+			print('\nHere is the best model given the chosen eval_metric = {}\n'.format(self.eval_metric))
+			print(best_model)
+			print('\nThis model is accessible from the following line of code : \n \
+				')
+			print('\n Continuining we can conduct tests to discover the following : \n \
+				- Outliers \n \
+				- Influential Points \n \
+				- Points of High Leverage \n \
+				- Including plots with hypothesis tests\n')
+			print('\nAgain we will check for the verbose flag = {} \n \
+				to determine what information to show next'.format(self.verbose))
+
+			model = self.get_best_model()
+
+			print('Checking for outliers . . . \n')
+
+			self.__plotFittedValuesAndResiduals(model)
+
+
+			#TODO: Look for outliers and do the tests
+
+
 
 		else:
 			print('\n Exhaustive selection is 2^n in complexity. \
-				\n that would require that we would have some sort of threading implemented to do Best Subset Selection \
-				\n Hopefully we can do this in the future, but for now please use : selection=\'forward\' \n')
-
+					\n that would require that we would have some sort of threading implemented to do Best Subset Selection \
+					\n Hopefully we can do this in the future, but for now please use : selection=\'forward\' \n')
 
 		# the verbose option allows the user to determine how much information will be presented and accessible on object instantiation.
 		# global _df
@@ -164,7 +212,7 @@ class LR:
 
 
 	# helper functions for display purposes
-	def __displayDataFrame(self,df,n):
+	def __displayDataFrame(self,df,n=5):
 		#displays n results from a resulting dataframe
 		print(df.head(n))
 
@@ -194,16 +242,20 @@ class LR:
 			if dtype == np.dtype('O'):
 				print('Handling object dtype column: \"{}" in design matrix with One Hot Encoding'.format(col))
 				# variable to represent the collection of one hot encoded columns
-				ohe =pd.get_dummies(df, drop_first=True)
-				df = df.drop(col,axis=1)
-				df = pd.concat([df,ohe],axis=1)
+				df = pd.get_dummies(df, drop_first=True)
+				# print(ohe.columns)
+				# df = df.drop(col,axis=1)
+				# df = pd.concat([df,ohe],axis=1,join='inner')
 			else:
 				pass
 
 		y = df[str(self.response)]
-		if y.shape[1]>1:
-			y = y.loc[:,~y.columns.duplicated()]
+		# if y.shape[1]>1:
+		# 	y = y.loc[:,~y.columns.duplicated()]
 		X = df.drop(str(self.response),axis=1)
+		# have to purposely add a column of 1s
+		# need to remove the intercept here because it's proving to be the best single feature lol
+		# X = sm.add_constant(X)
 		k = len(X.columns.tolist())
 
 		return df, X, y, k
@@ -301,35 +353,69 @@ class LR:
 
 		return fw_df
 
-	def __computeModelComparison(self, df):
+	def __computeModelComparison(self, df1):
 
 		m = len(y)
-		p = len(X.columns)
-		hat_sigma_squared = (1/(m - p -1)) * min(_df['RSS'])
+		p = len(models_df)
+		# computing sigmahatsquared
+		hat_sigma_squared = (1/(m - p -1)) * min(df1['RSS'])
 		# math for these model metrics
-		AIC = (1/(m*hat_sigma_squared)) * (df['RSS'] + 2 * df['num_features'] * hat_sigma_squared )
-		BIC = (1/(m*hat_sigma_squared)) * (df['RSS'] +  np.log(m) * df['num_features'] * hat_sigma_squared )
-		C_p = (1/m) * (df['RSS'] * df['num_features'] * hat_sigma_squared)
-		Adjusted_R_squared = 1 - ( (1 - df['R_squared'])*(m-1)/(m-df['num_features'] -1))
+		df1['AIC'] = (1/(m*hat_sigma_squared)) * (df1['RSS'] + 2 * df1['num_features'] * hat_sigma_squared )
+		df1['BIC'] = (1/(m*hat_sigma_squared)) * (df1['RSS'] +  np.log(m) * df1['num_features'] * hat_sigma_squared )
+		df1['C_p'] = (1/m) * (df1['RSS'] * df1['num_features'] * hat_sigma_squared)
+		df1['Adjusted_R_squared'] = 1 - ( (1 - df1['R_squared'])*(m-1)/(m-df1['num_features'] -1))
 
-		return df
+		return df1
 
 	def __getBestModel(self,df):
 			
-		# if self.eval_metric == 'RSS':
-		# if self.eval_metric == 'R_squared':		
-		# if self.eval_metric == 'AIC':
-		# if self.eval_metric == 'BIC':
-		# if self.eval_metric == 'C_p':
-		# if self.eval_metric == 'Adjusted_R_squared':
-		return 
+		if self.eval_metric == 'RSS':
+			tmp_df = df.set_index('RSS')
+			# print(tmp_df.index)
+			best_model = tmp_df.loc[df['RSS'].min()]
 
-	def __plotFittedValuesAndResiduals(self):
+		if self.eval_metric == 'R_squared':
+			tmp_df = df.set_index('R_squared')
+			best_model = tmp_df.loc[df['R_squared'].max()]
+
+		if self.eval_metric == 'AIC':
+			tmp_df = df.set_index('AIC')
+			best_model = tmp_df.loc[df['AIC'].min()]
+
+		if self.eval_metric == 'BIC':
+			tmp_df = df.set_index('BIC')
+			best_model = tmp_df.loc[df['BIC'].min()]
+
+		if self.eval_metric == 'C_p':
+			tmp_df = df.set_index('C_p')
+			best_model = tmp_df.loc[df['C_p'].min()]
+
+		if self.eval_metric == 'Adjusted_R_squared':
+			tmp_df = df.set_index('Adjusted_R_squared')
+			best_model = tmp_df.loc[df['Adjusted_R_squared'].max()]
+
+		return best_model
+
+	def __getCorrelatedValues(self,model):
+
+		corrResidFittedValues = np.correlate(model.fittedvalues,model.resid)
+
+
+	def __assertCorrelatedValues(self,corr):
+		# :params:
+		# corr : correlated value
+		# return : print statement stating the significance of the correlation
+
+		pass
+
+	def __plotFittedValuesAndResiduals(self,model):
 		#TODO: add plotting here once we're ready to start working with outliers
 
-		f, ax = plt.subplots(figsize=(13, 13))
+		print('Plotting Fitted Values and Residuals of model : {}'.format(str(model)))
+
+		f, ax = plt.subplots(figsize=(12, 6))
 		sns.despine(f, left=True, bottom=True)
-		sns.scatterplot(x=model_1.fittedvalues, y=model_1.resid,
+		sns.scatterplot(x=model.fittedvalues, y=model.resid,
 						palette="ch:r=-.2,d=.3_r",
 						sizes=(1, 8), linewidth=0, ax=ax)
 		plt.axhline(y=0,color='red')
@@ -337,10 +423,12 @@ class LR:
 		plt.ylabel("residuals",fontsize=20)
 		plt.show()
 
-	def model(self):
-		# returns the best model chosen by the program
-
-		return
+	def model_selection(self):
+		# returns the dataframe of models to choose from
+		# Ex to get the model with 8 features:
+		# models = LR().model_selection()
+		# chosen_model = models['models'][7]
+		return _df
 
 	def plot_RSS_and_R_squared(self, df):
 		# if you wanted to plot RSS and R squared you can.
@@ -363,110 +451,118 @@ class LR:
 
 		plt.show()
 
-	def plot_best_subset_selection(self,df):
+	def get_best_model(self):
+
+		print('This object is a fitted model with methods found in the statsmodels.OLS.fit() documentation.\n')
+
+		return best_model['models']
+
+	def __plot_single_eval():
+		# Might not have to do this
+		pass
+
+
+	def __plot_model_selection(self,df):
 		#TODO: add arguments 
 		# ideally we want to write one function to plot things based on what we specify in the arguments
 
 		if self.verbose > 0:
 
-			fig = plt.figure(figsize = (16,6))
-			# ax = fig.add_subplot(2, 3, 1)
-			
-			# plots should give you new information / meaningful information
-			# incresed complexity versus lower error.
-
-			# ax.scatter(df['num_features'],df['RSS'], alpha = .2, color = 'darkblue' )
-			# ax.plot(df['num_features'],df['min_RSS'],color = 'r', label = 'Best subset')
-			# ax.set_xlabel('# Features')
-			# ax.set_ylabel('RSS')
-			# ax.set_title('RSS - Best subset selection')
-			# ax.legend()
-
-			# ax = fig.add_subplot(2, 3, 2)
-			# ax.scatter(df.['num_features'],df.['R_squared'], alpha = .2, color = 'darkblue' )
-			# ax.plot(df['num_features'],df['max_R_squared'],color = 'r', label = 'Best subset')
-			# ax.set_xlabel('# Features')
-			# ax.set_ylabel('R squared')
-			# ax.set_title('R_squared - Best subset selection')
-			# ax.legend()
+			fig = plt.figure(figsize = (12,12))
 
 			ax = fig.add_subplot(2, 2, 1)
 			ax.scatter(df['num_features'],df['AIC'], alpha = .2, color = 'darkblue' )
-			ax.plot(df['num_features'],df['min_AIC'],color = 'r', label = 'Best subset')
+			# ax.plot(df['num_features'],df['min_AIC'],color = 'r', label = 'Best subset')
 			ax.set_xlabel('# Features')
 			ax.set_ylabel('AIC')
-			ax.set_title('AIC - Best subset selection')
+			ax.set_title('AIC - {} subset selection'.format(self.selection))
 			ax.legend()
 
 			ax = fig.add_subplot(2, 2, 2)
 			ax.scatter(df['num_features'],df['BIC'], alpha = .2, color = 'darkblue' )
-			ax.plot(df['num_features'],df['min_BIC'],color = 'r', label = 'Best subset')
+			# ax.plot(df['num_features'],df['min_BIC'],color = 'r', label = 'Best subset')
 			ax.set_xlabel('# Features')
 			ax.set_ylabel('BIC')
-			ax.set_title('BIC - Best subset selection')
+			ax.set_title('BIC - {} subset selection'.format(self.selection))
 			ax.legend()
 
 			ax = fig.add_subplot(2, 2, 3)
 			ax.scatter(df['num_features'],df['Adjusted_R_squared'], alpha = .2, color = 'darkblue' )
-			ax.plot(df['num_features'],df['max_Adjusted_R_squared'],color = 'r', label = 'Best subset')
+			# ax.plot(df['num_features'],df['max_Adjusted_R_squared'],color = 'r', label = 'Best subset')
 			ax.set_xlabel('# Features')
 			ax.set_ylabel('Adjusted R squared')
-			ax.set_title('Adjusted R squared - Best subset selection')
+			ax.set_title('Adjusted R squared - {} subset selection'.format(self.selection))
+			ax.legend()
+
+			ax = fig.add_subplot(2, 2, 4)
+			ax.scatter(df['num_features'],df['C_p'], alpha = .2, color = 'darkblue' )
+			# ax.plot(df['num_features'],df['C_p'],color = 'r', label = 'Best subset')
+			ax.set_xlabel('# Features')
+			ax.set_ylabel('C_p')
+			ax.set_title('C_p - {} subset selection'.format(self.selection))
 			ax.legend()
 
 		else: 
 
-			fig = plt.figure(figsize = (16,6))
+			fig = plt.figure(figsize = (12,6))
 
 			if self.eval_metric == "RSS":
 				ax = fig.add_subplot(1, 1, 1)
 				ax.scatter(df['num_features'],df['RSS'], alpha = .2, color = 'darkblue' )
-				ax.plot(df['num_features'],df['min_RSS'],color = 'r', label = 'Best subset')
+				# ax.plot(df['num_features'],df['min_RSS'],color = 'r', label = 'Best subset')
 				ax.set_xlabel('# Features')
 				ax.set_ylabel('RSS')
-				ax.set_title('RSS - Best subset selection')
+				ax.set_title('RSS - {} subset selection'.format(self.selection))
 				ax.legend()
 
 			if self.eval_metric == "R_squared":
 				ax = fig.add_subplot(1, 1, 1)
 				ax.scatter(df['num_features'],df['R_squared'], alpha = .2, color = 'darkblue' )
-				ax.plot(df['num_features'],df['max_R_squared'],color = 'r', label = 'Best subset')
+				# ax.plot(df['num_features'],df['max_R_squared'],color = 'r', label = 'Best subset')
 				ax.set_xlabel('# Features')
 				ax.set_ylabel('R squared')
-				ax.set_title('R_squared - Best subset selection')
+				ax.set_title('R_squared - {} subset selection'.format(self.selection))
 				ax.legend()
 
 
 			if self.eval_metric == "AIC":
 				ax = fig.add_subplot(1, 1, 1)
 				ax.scatter(df['num_features'],df['AIC'], alpha = .2, color = 'darkblue' )
-				ax.plot(df['num_features'],df['min_AIC'],color = 'r', label = 'Best subset')
+				# ax.plot(df['num_features'],df['min_AIC'],color = 'r', label = 'Best subset')
 				ax.set_xlabel('# Features')
 				ax.set_ylabel('AIC')
-				ax.set_title('AIC - Best subset selection')
+				ax.set_title('AIC - {} subset selection'.format(self.selection))
 				ax.legend()
 
 			if self.eval_metric == "BIC":
 				ax = fig.add_subplot(1, 1, 1)
 				ax.scatter(df['num_features'],df['BIC'], alpha = .2, color = 'darkblue' )
-				ax.plot(df['num_features'],df['min_BIC'],color = 'r', label = 'Best subset')
+				# ax.plot(df['num_features'],df['min_BIC'],color = 'r', label = 'Best subset')
 				ax.set_xlabel('# Features')
 				ax.set_ylabel('BIC')
-				ax.set_title('BIC - Best subset selection')
+				ax.set_title('BIC - {} subset selection'.format(self.selection))
 				ax.legend()
 
 			if self.eval_metric == "Adjusted_R_squared":
 				ax = fig.add_subplot(1, 1, 1)
 				ax.scatter(df['num_features'],df['Adjusted_R_squared'], alpha = .2, color = 'darkblue' )
-				ax.plot(df['num_features'],df['max_Adjusted_R_squared'],color = 'r', label = 'Best subset')
+				# ax.plot(df['num_features'],df['max_Adjusted_R_squared'],color = 'r', label = 'Best subset')
 				ax.set_xlabel('# Features')
 				ax.set_ylabel('Adjusted R squared')
-				ax.set_title('Adjusted R squared - Best subset selection')
+				ax.set_title('Adjusted R squared - {} subset selection'.format(self.selection))
+				ax.legend()
+			if self.eval_metric == "C_p":
+				ax = fig.add_subplot(1, 1, 1)
+				ax.scatter(df['num_features'],df['C_p'], alpha = .2, color = 'darkblue' )
+				# ax.plot(df['num_features'],df['C_p'],color = 'r', label = 'Best subset')
+				ax.set_xlabel('# Features')
+				ax.set_ylabel('C_p')
+				ax.set_title('C_p - {} subset selection'.format(self.selection))
 				ax.legend()
 		
 		plt.show()
 
 
 if __name__ == "__main__":
-	x = LR(dataset="loans_small.csv",response="int.rate",selection='forward', prediction=True, eval_metric="RSS", verbose=0)
+	x = LR(dataset="loan_data.csv",response="int.rate",selection='forward', prediction=True, eval_metric="RSS", verbose=0)
 	x
