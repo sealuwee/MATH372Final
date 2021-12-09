@@ -14,23 +14,14 @@ from sklearn.metrics import make_scorer
 from sklearn.model_selection import cross_validate
 from sklearn.metrics import mean_squared_error
 import pylab as pyl
-import itertools
-import time
+import 
+from glmnet import ElasticNet
 
-# going to try interfacing R to use regsubsets()
-import rpy2
-# or maybe we dont have to
-
-#TODO: replace all values for y & X with response and design matrix
-#TODO: test cross validation and different metrics provided in object instantiation
-#TODO: add plot functions from scratch paper2
-#TODO/Stretch: write preprocessing for ranks
 
 class LR:
-	# global variables to represent the dataframe
-	# X represents the design matrix
-	# y represents the repsonse
-	# k represents the number of features after preprocessing
+
+	# global variables 
+
 	global k
 	global df
 	global X
@@ -40,6 +31,8 @@ class LR:
 	global models_df
 	global df1
 	global best_model
+	global ridge_model
+	global lasso_model
 	df = None
 	X = None
 	y = None
@@ -49,6 +42,11 @@ class LR:
 	models_df = None
 	df1 = None
 	best_model = None
+	ridge_model = None
+	lasso_model = None
+
+	# constructor for object instantiation.
+	# this is where the bulk of the processes will be completed.
 
 	def __init__(self, dataset, response, selection='forward', prediction=True, eval_metric='RSS', verbose=0):
 		# string that represents a path to the dataset
@@ -56,11 +54,6 @@ class LR:
 		# string that represents the column in the dataset that you would like to specifty as the response.
 		self.response = response
 		# default eval metric = , otherwise unless specified as something else
-		# preferable eval metric == 
-		# ridge+lasso increase RSS because we're worried about overfitting
-		#TODO: need argument that specifies inference or prediction 
-		# if inference == different way for model selection lasso for variability
-		# Mallows CP AIC BIC
 		# default selection is forward because exhaustive selection is of 2^n complexity and we need reproducability.
 		self.selection = selection
 		self.prediction = prediction
@@ -78,16 +71,14 @@ class LR:
 		# best_model = self.__getBestModel()
 		global df1
 		global best_model
+		global ridge_model
+		global lasso_model
 
 		if self.selection == 'forward':
+			
 			self.__forwardSelection()
-			# print(len(models))
-			# print(fw_df.columns)
-			# print(len(models_df))
-			# print(models_df.columns)
-			# print(len(fw_df))
-			# print(fw_df.head())
-			if verbose > 0:
+
+			if self.verbose > 0:
 				self.plot_RSS_and_R_squared(fw_df)
 				self.__displayDataFrame(fw_df,5)
 				print('\nPerforming Model comparisons with the chosen metric: {}\n'.format(self.eval_metric))
@@ -137,7 +128,6 @@ class LR:
 
 			self.__displaySummary(model)
 
-
 			self.__plotFittedValuesAndResiduals(model)
 
 			print('Checking correlation between fitted values and residuals . . .')
@@ -172,8 +162,29 @@ class LR:
 
 			BPresults = self.__breuschPaganResults(model)
 
+			transformations = self.__performTransformations(BPresults)
 
+			if transformations == True;
+				print('\nFrom this point, we would recommend that there be transformations made with some form of penalized regression.')
 
+				ridge_model = __performRidgeRegresion(self)
+				lasso_model = __performLasso(self)
+
+				if self.verbose > 0:
+					print('Plotting Ridge model.')
+					self.__plotGLMNet(ridge_model,2)
+					print('Plotting Lasso model.')
+					self.__plotGLMNet(lasso_model,1)	
+
+				print('\n The Ridge and Lasso models have been saved.\
+					\n They may be accessed with the method .ridge() & .lasso() respectively.')
+
+			else: 
+				print('\nNo penalized regression model will be created.')
+				print('\nFrom here our analysis is complete. \
+					\n If you would like to access the best model it can be accessed with the method .get_best_model() ')
+
+			print('\n \n \n \n Thank you ! \n \n \n')
 
 		else:
 			print('\n Exhaustive selection is 2^n in complexity. \
@@ -231,6 +242,73 @@ class LR:
 		print('\n Preprocessing has concluded . . . \n')
 
 		return df, X, y, k
+
+	def __performTransformations(self, BPresult):
+
+		if BPresult > 0:
+
+			print('\nGiven the following Breusch-Pagan result that we found we will be performing the following transformations')
+
+			print('\nFirst we will do a transformation that takes the log of the dependent variable')
+
+			global y
+			
+			y = np.log(y)
+
+			print('\nTransformation complete.')
+
+			return True
+
+		else: 
+
+			print('\n We will not be doing any transformations because of the results from the Breusch-Pagan test.')
+
+			return False
+
+
+	def __performRidgeRegresion(self):
+
+		# fit the transformed value of y
+		# alpha = 0 for ridge
+		ridge = glmnet(X,y,alpha=0)
+
+		return ridge
+
+	def __performLasso(self):
+		
+		# fit the transformed value of y
+		# alpha = 1 for lasso
+		lasso = glmnet(X,y,alpha=1)
+
+		return lasso
+
+	def ridge(self):
+		#returns the ridge_model
+		return ridge_model
+
+	def lasso(self):
+		# returns the lasso_model
+		return lasso_model
+
+	def __plotGLMNet(self,model,L):
+
+		_x = model.lambda_path_
+		_y = model.coef_
+
+		f,ax = plt.subplots(figsize=(12,6))
+		sns.despine(f,left=True,bottom=True)
+		sns.scatterplot(x=_x, y=_y, 
+						palette="ch:r=-.2,d=.3_r",
+						sizes=(1, 8), linewidth=0, ax=ax)
+
+		plt.xlabel("Lambdas".format(n))
+		if L == 2:
+			plt.ylabel("L2 Norm")
+		if L == 1:
+			plt.ylabel("L1 Norm")
+
+		plt.xlim([10,10000])
+		plt.show()
 
 	def __processSubset(self,combination):
 		# Fit model on feature_set and calculate RSS
@@ -493,7 +571,6 @@ class LR:
 			print('\n The correlation = {} between these two data is incredibly close to 0, therefore we can conclude that the linearity assumption is met.\n'.format(corr))
 
 	def __plotFittedValuesAndResiduals(self,model):
-		#TODO: add plotting here once we're ready to start working with outliers
 
 		print('Plotting Fitted Values and Residuals of model : {}'.format(str(model)))
 
@@ -508,11 +585,8 @@ class LR:
 		plt.show()
 
 	def model_selection(self):
-		# returns the dataframe of models to choose from
-		# Ex to get the model with 8 features:
-		# models = LR().model_selection()
-		# chosen_model = models['models'][7]
-		return _df
+
+		return fw_df
 
 	def plot_RSS_and_R_squared(self, df):
 		# if you wanted to plot RSS and R squared you can.
@@ -579,7 +653,6 @@ class LR:
 			print('\n We will not be plotting the studenized resiuals at this level because the residuals are not normally distributed according to the Kolmogorov-Smirnov test. \n')
 
 	def __plot_model_selection(self,df):
-		#TODO: add arguments 
 		# ideally we want to write one function to plot things based on what we specify in the arguments
 
 		if self.verbose > 0:
