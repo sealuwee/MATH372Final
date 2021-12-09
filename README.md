@@ -26,7 +26,7 @@ The way I approached this project was to do all of these steps in Python with th
 
 ## Requirements:
 
-** MUST HAVE Python version >= 3.7 **
+**MUST HAVE Python version >= 3.7**
 
 ## Installation:
 
