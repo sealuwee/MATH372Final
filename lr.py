@@ -168,11 +168,13 @@ class LR:
 
 			self.__assertKSTest(KSscore,model)
 
+
+
 		else:
 			print('\n Exhaustive selection is 2^n in complexity. \
 					\n that would require that we would have some sort of threading implemented to do Best Subset Selection \
 					\n Hopefully we can do this in the future, but for now please use : selection=\'forward\' \n')
-			
+
 	# helper functions for display purposes
 	def __displayDataFrame(self,df,n=5):
 		#displays n results from a resulting dataframe
@@ -397,6 +399,14 @@ class LR:
 
 		return np.where(hat_diag > 3*trace/n)
 
+	def __nonNormalityTest(self, residuals):
+		print(stats.shapiro(residuals))
+
+		if stats.shapiro(residuals)[1] < 0.05:
+			print("\n Shaprio p-value is {} which is less than 0.05.\
+				\n This means that the non-normality test fails for the residuals of this model.".format(stats.shapiro(residuals)[1]))
+
+
 	def __studentizedResiduals(self, model):
 		# plot studentized residuals
 		_X = sm.add_constant(X)
@@ -416,8 +426,8 @@ class LR:
 						palette="ch:r=-.2,d=.3_r",
 						sizes=(1, 8), linewidth=0, ax=ax)
 
-		qt1 = scipy.stats.t.ppf(1 - alpha / 2, n - p - 2)
-		qt2 = scipy.stats.t.ppf(1 - alpha / 2, n - p - 2)
+		qt1 = stats.t.ppf(1 - alpha / 2, n - p - 2)
+		qt2 = stats.t.ppf(1 - alpha / 2, n - p - 2)
 
 		plt.axhline(y=qt1,color='red')
 		plt.axhline(y=qt2,color='red')
