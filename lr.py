@@ -17,7 +17,7 @@ import pylab as pyl
 from glmnet import ElasticNet
 
 
-class LR:
+class LR(object):
 
 	# global variables 
 
@@ -78,7 +78,7 @@ class LR:
 			self.__forwardSelection()
 
 			if self.verbose > 0:
-				self.plot_RSS_and_R_squared(fw_df)
+				self.__plot_RSS_and_R_squared(fw_df)
 				self.__displayDataFrame(fw_df,5)
 				print('\nPerforming Model comparisons with the chosen metric: {}\n'.format(self.eval_metric))
 				print('\nCalling the method .model_selection() will provide an accessible dataframe\n')
@@ -587,7 +587,7 @@ class LR:
 
 		return fw_df
 
-	def plot_RSS_and_R_squared(self, df):
+	def __plot_RSS_and_R_squared(self, df):
 		# if you wanted to plot RSS and R squared you can.
 		fig = plt.figure(figsize = (16,6))
 		ax = fig.add_subplot(1,2,1)
