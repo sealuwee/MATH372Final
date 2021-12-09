@@ -14,7 +14,6 @@ from sklearn.metrics import make_scorer
 from sklearn.model_selection import cross_validate
 from sklearn.metrics import mean_squared_error
 import pylab as pyl
-import 
 from glmnet import ElasticNet
 
 
@@ -164,7 +163,7 @@ class LR:
 
 			transformations = self.__performTransformations(BPresults)
 
-			if transformations == True;
+			if transformations == True:
 				print('\nFrom this point, we would recommend that there be transformations made with some form of penalized regression.')
 
 				ridge_model = __performRidgeRegresion(self)
@@ -489,11 +488,11 @@ class LR:
 			print("\n Shapiro p-value is {} which is less than 0.05.\
 				\n This means that the non-normality test fails for the residuals of this model.".format(stats.shapiro(residuals)[1]))
 		
-		else if stats.shapiro(residuals)[1] < 0.1 and stats.shapiro(residuals)[1] > 0.05:
+		elif stats.shapiro(residuals)[1] < 0.1 and stats.shapiro(residuals)[1] > 0.05:
 			print("\n Shapiro p-value is {} which is greater than 0.05 and less than 0.1.\
 				\n This means that the non-normality test is questionable for the residuals of this model.".format(stats.shapiro(residuals)[1]))
 		
-		else if stats.shapiro(residuals)[1] > 0.1:
+		elif stats.shapiro(residuals)[1] > 0.1:
 			print("\n Shapiro p-value is {} which is greater than 0.1.\
 				\n This means that the non-normality test passes for the residuals of this model.".format(stats.shapiro(residuals)[1]))
 
@@ -509,7 +508,7 @@ class LR:
 			
 			return 1
 
-		else if test[1] < 0.1 and test[1] > 0.05:
+		elif test[1] < 0.1 and test[1] > 0.05:
 			print("\n Breusch-Pagan p-value is {} which is greater than 0.05 and less than 0.1.\
 				\n This means that the heteroscedasticity of this model is questionable.".format(stats.shapiro(residuals)[1]))
 			
@@ -517,7 +516,7 @@ class LR:
 			
 			return 0
 
-		else if test[1] > 0.1:
+		elif test[1] > 0.1:
 			print("\n Breusch-Pagan p-value is {} which is greater than 0.1.\
 				\n This means that we do not have sufficient evidence to say that heteroscedasticity is present in the regression model.".format(stats.shapiro(residuals)[1]))
 			
