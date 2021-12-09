@@ -168,6 +168,9 @@ class LR:
 
 			self.__assertKSTest(KSscore,model)
 
+			self.__nonNormalityTest(model.resid)
+
+			BPresults = self.__breuschPaganResults(model)
 
 
 
@@ -405,15 +408,44 @@ class LR:
 		print(stats.shapiro(residuals))
 
 		if stats.shapiro(residuals)[1] < 0.05:
-			print("\n Shaprio p-value is {} which is less than 0.05.\
+			print("\n Shapiro p-value is {} which is less than 0.05.\
 				\n This means that the non-normality test fails for the residuals of this model.".format(stats.shapiro(residuals)[1]))
+		
 		else if stats.shapiro(residuals)[1] < 0.1 and stats.shapiro(residuals)[1] > 0.05:
-			print("\n Shaprio p-value is {} which is greater than 0.05 and less than 0.1.\
+			print("\n Shapiro p-value is {} which is greater than 0.05 and less than 0.1.\
 				\n This means that the non-normality test is questionable for the residuals of this model.".format(stats.shapiro(residuals)[1]))
-		else:
-			print("\n Shaprio p-value is {} which is greater than 0.1.\
+		
+		else if stats.shapiro(residuals)[1] > 0.1:
+			print("\n Shapiro p-value is {} which is greater than 0.1.\
 				\n This means that the non-normality test passes for the residuals of this model.".format(stats.shapiro(residuals)[1]))
 
+	def __breuschPaganResults(self, model):
+		names = ['Lagrange multiplier statistic', 'p-value', 'f-value', 'f p-value']
+		test = sm.het_breuschpagan(model.resid, model.model.exog)
+		
+		if test[1] < 0.05:
+			print("\n Breusch-Pagan p-value is {} which is less than 0.05.\
+				\n This means heteroscedasticity is present in this model".format(stats.shapiro(residuals)[1]))
+
+			print('\n We suggest transformations.')
+			
+			return 1
+
+		else if test[1] < 0.1 and test[1] > 0.05:
+			print("\n Breusch-Pagan p-value is {} which is greater than 0.05 and less than 0.1.\
+				\n This means that the heteroscedasticity of this model is questionable.".format(stats.shapiro(residuals)[1]))
+			
+			print('\nWe suggest that we do not do transformations')
+			
+			return 0
+
+		else if test[1] > 0.1:
+			print("\n Breusch-Pagan p-value is {} which is greater than 0.1.\
+				\n This means that we do not have sufficient evidence to say that heteroscedasticity is present in the regression model.".format(stats.shapiro(residuals)[1]))
+			
+			print('\nWe suggest that we do not do transformations')
+			
+			return -1
 
 	def __studentizedResiduals(self, model):
 		# plot studentized residuals
