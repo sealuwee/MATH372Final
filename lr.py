@@ -5,12 +5,15 @@ from sklearn.model_selection import train_test_split
 from statsmodels.regression.linear_model import OLS
 import seaborn as sns
 import matplotlib.pyplot as plt
+from scipy.stats import norm
+from scipy import stats
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 from statsmodels.graphics.regressionplots import *
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import cross_validate
 from sklearn.metrics import mean_squared_error
+import pylab as pyl
 import itertools
 import time
 
@@ -75,7 +78,7 @@ class LR:
 		# best_model = self.__getBestModel()
 		global df1
 		global best_model
-		print(X.columns)
+
 		if self.selection == 'forward':
 			self.__forwardSelection()
 			# print(len(models))
@@ -110,114 +113,73 @@ class LR:
 				# self.__plot_model_selection(df1)
 
 			# pull out the best model from the dataframe we created
+
 			best_model = self.__getBestModel(df1)
 			# print(best_model.columns)
+
 			print('\nHere is the best model given the chosen eval_metric = {}\n'.format(self.eval_metric))
+
 			print(best_model)
+
 			print('\nThis model is accessible from the following line of code : \n \
 				')
+
 			print('\n Continuining we can conduct tests to discover the following : \n \
 				- Outliers \n \
 				- Influential Points \n \
 				- Points of High Leverage \n \
 				- Including plots with hypothesis tests\n')
+
 			print('\nAgain we will check for the verbose flag = {} \n \
 				to determine what information to show next'.format(self.verbose))
 
 			model = self.get_best_model()
 
-			print('Checking for outliers . . . \n')
+			self.__displaySummary(model)
+
 
 			self.__plotFittedValuesAndResiduals(model)
 
+			print('Checking correlation between fitted values and residuals . . .')
 
-			#TODO: Look for outliers and do the tests
+			self.__assertCorrelatedValues(self.__getCorrelatedValues(model))
 
+			print('\nNow begins the normality assumption . . . ')
 
+			print('\nOutputting histogram of residuals . . . ')
+
+			self.__plot_histogram_residuals(model.resid)
+
+			print('\nOutputting QQ Plot . . . ')
+
+			sm.qqplot(model.resid, line='45')
+	
+			pyl.show()
+
+			outliers = self.__checkOutliers()
+
+			print('Here are the calculated points of high leverage')
+
+			print(outliers)
+
+			print('\n Now we will discover influential points. . . ')
+
+			KSscore = self.__KSTest(model.resid)
+
+			self.__assertKSTest(KSscore,model)
 
 		else:
 			print('\n Exhaustive selection is 2^n in complexity. \
 					\n that would require that we would have some sort of threading implemented to do Best Subset Selection \
 					\n Hopefully we can do this in the future, but for now please use : selection=\'forward\' \n')
-
-		# the verbose option allows the user to determine how much information will be presented and accessible on object instantiation.
-		# global _df
-
-		# The verbose option provides a dataframe with all scores
-		# if self.eval_metric != None:
-			# Instantiate new dataframe to add columnar values for the best scores for all eval metrics for plotting purposes.
-			# donot plot RSS/RSquared
-			# _df = models[models.groupby('num_features')['RSS'].transform(min) == models['RSS']]
-			# _df['min_RSS'] = _df.groupby('num_features')['RSS'].transform(min)
-
-			# _df = models[models.groupby('num_features')['R_squared'].transform(max) == models['R_squared']]
-			# _df['max_R_squared'] = _df.groupby('num_features')['R_squared'].transform(max)
-
-			# _df = models[models.groupby('num_features')['AIC'].transform(min) == models['AIC']]
-			# _df['min_AIC'] = _df.groupby('num_features')['AIC'].transform(min)
-
-			# _df = models[models.groupby('num_features')['BIC'].transform(min) == models['BIC']]
-			# _df['min_BIC'] = _df.groupby('num_features')['BIC'].transform(min)
-
-			# _df = models[models.groupby('num_features')['Adjusted_R_squared'].transform(max) == models['Adjusted R_squared']]
-			# _df['max_Adjusted_R_squared'] = _df.groupby('num_features')['Adjusted_R_squared'].transform(max)
-
-		# else:
-		# 	print("\n The following eval metrics are required to be specified during object instantiation: \
-		# 		   \n eval_metric params : \
-		# 		   \n RSS , R_squared, AIC, BIC, adjR_squared \
-		# 		   \n Default = RSS ")
-
-		# maybe only make a plot that shows all the metrics
-
-		# else: 
-		# 	# In the non verbose option we only populate a dataframe with the user's chosen eval metric for plotting purposes.
-		# 	if self.eval_metric != None:
-		# 		if self.eval_metric=='RSS':
-		# 			_df = models[models.groupby('num_features')['RSS'].transform(min) == models['RSS']]
-		# 			_df['min_RSS'] = _df.groupby('num_features')['RSS'].transform(min)
-					
-		# 		if self.eval_metric=='R_squared':
-		# 			_df = models[models.groupby('num_features')['R_squared'].transform(max) == models['R_squared']]
-		# 			_df['max_R_squared'] = _df.groupby('num_features')['R_squared'].transform(max)
-
-		# 		if self.eval_metric=='AIC':
-		# 			_df = models[models.groupby('num_features')['AIC'].transform(min) == models['AIC']]
-		# 			_df['min_AIC'] = _df.groupby('num_features')['AIC'].transform(min)
-
-
-		# 		if self.eval_metric=='BIC':
-		# 			_df = models[models.groupby('num_features')['BIC'].transform(min) == models['BIC']]
-		# 			_df['min_BIC'] = _df.groupby('num_features')['BIC'].transform(min)
-
-		# 		if self.eval_metric=='adjR_squared':
-		# 			_df = models[models.groupby('num_features')['Adjusted_R_squared'].transform(max) == models['Adjusted R_squared']]
-		# 			_df['max_Adjusted_R_squared'] = _df.groupby('num_features')['Adjusted_R_squared'].transform(max)
-	
-		# 	else:
-		# 		print("\n The following eval metrics are required to be specified during object instantiation: \
-		# 			   \n eval_metric params : \
-		# 			   \n RSS , R_squared, AIC, BIC, adjR_squared \
-		# 			   \n Default = RSS ")
-
-		# if self.verbose > 0:
-		# 	self.__displayDataFrame(df,10)
-		# 	#TODO: PLOT FUNCTION HERE
-		# else:
-		# 	self.__displayDataFrame(df,3)
-		# 	#TODO: PLOT FUNCTION HERE
-
-		# self.__displaySummary(best_model)
-		# this should show a plot of the models
-
-
+			
 	# helper functions for display purposes
 	def __displayDataFrame(self,df,n=5):
 		#displays n results from a resulting dataframe
 		print(df.head(n))
 
 	def __displaySummary(self,model):
-		model.summary()
+		print(model.summary())
 
 	# private functions in order of operations
 	def __preprocessing(self):
@@ -225,6 +187,7 @@ class LR:
 		global y
 		global X
 		global k
+		print('\n Beginning preprocessing . . .\n')
 
 		PATH = self.dataset
 		df = pd.read_csv(PATH)
@@ -258,6 +221,8 @@ class LR:
 		# X = sm.add_constant(X)
 		k = len(X.columns.tolist())
 
+		print('\n Preprocessing has concluded . . . \n')
+
 		return df, X, y, k
 
 	def __processSubset(self,combination):
@@ -265,7 +230,8 @@ class LR:
 
 		model = sm.OLS(y,X[list(combination)])
 		model = model.fit()
-		RSS = mean_squared_error(y,model.predict(X[list(combination)])) * len(y)
+		# RSS = mean_squared_error(y,model.predict(X[list(combination)])) * len(y)
+		RSS = ((model.predict(X[list(combination)])-y)**2).sum()
 		R_squared = model.rsquared
 		# AIC = model.aic
 		# BIC = model.bic
@@ -396,9 +362,76 @@ class LR:
 
 		return best_model
 
+	def __checkOutliers(self):
+		print('Checking for outliers . . . \n')
+		# have to purposely add a column of 1s for the intercept here
+		print('Points of high levereage are determined by the diagonals from the Hat Matrix')
+		_X = sm.add_constant(X)
+		_X = _X.to_numpy()
+		hat = _X.dot(np.linalg.inv(_X.T.dot(_X)).dot(_X.T))
+		# print(hat)
+		hat_diag = np.diagonal(hat)
+		# print(hat_diag)
+		n = len(hat_diag)
+		print("There are : {} diagonal entries".format(len(hat_diag)))
+		# n diagonal entries
+		trace = round(hat_diag.sum())
+		print("Sum of the diagonal entries: {} ".format(trace))
+		# diag = (_X.T * np.linalg.inv(_X.T.dot(_X)).dot(_X.T)).sum(0)
+		# print(diag)
+		print("Now we can plot to find points of high leverage . . . \n")
+
+		f,ax = plt.subplots(figsize=(12,6))
+		sns.despine(f,left=True,bottom=True)
+		sns.scatterplot(x=range(0,n), y=hat_diag, 
+						palette="ch:r=-.2,d=.3_r",
+						sizes=(1, 8), linewidth=0, ax=ax)
+
+		plt.axhline(y=2*trace/n,color='green')
+		plt.axhline(y=3*trace/n,color='red')
+		plt.xlabel("Range from 0,{}".format(n))
+		plt.ylabel("Diagonals")
+		plt.show()
+
+		# these are our points of high leverage
+
+		return np.where(hat_diag > 3*trace/n)
+
+	def __studentizedResiduals(self, model):
+		# plot studentized residuals
+		_X = sm.add_constant(X)
+		_X = _X.to_numpy()
+		hat = _X.dot(np.linalg.inv(_X.T.dot(_X)).dot(_X.T))
+		# print(hat)
+		hat_diag = np.diagonal(hat)
+		# print(hat_diag)
+		n = len(hat_diag)
+		p = round(hat_diag.sum()) - 1
+		alpha = 0.5
+
+
+		f,ax = plt.subplots(figsize=(12,6))
+		sns.despine(f,left=True,bottom=True)
+		sns.scatterplot(x=range(0,n), y=model.outlier_test()['student_resid'], 
+						palette="ch:r=-.2,d=.3_r",
+						sizes=(1, 8), linewidth=0, ax=ax)
+
+		qt1 = scipy.stats.t.ppf(1 - alpha / 2, n - p - 2)
+		qt2 = scipy.stats.t.ppf(1 - alpha / 2, n - p - 2)
+
+		plt.axhline(y=qt1,color='red')
+		plt.axhline(y=qt2,color='red')
+		
+		plt.xlabel("Range from 0,{}".format(n))
+		plt.ylabel("Studentized Residuals")
+
+		plt.show()
+
 	def __getCorrelatedValues(self,model):
 
 		corrResidFittedValues = np.correlate(model.fittedvalues,model.resid)
+
+		return corrResidFittedValues
 
 
 	def __assertCorrelatedValues(self,corr):
@@ -406,7 +439,8 @@ class LR:
 		# corr : correlated value
 		# return : print statement stating the significance of the correlation
 
-		pass
+		if corr < 0.00001:
+			print('\n The correlation = {} between these two data is incredibly close to 0, therefore we can conclude that the linearity assumption is met.\n'.format(corr))
 
 	def __plotFittedValuesAndResiduals(self,model):
 		#TODO: add plotting here once we're ready to start working with outliers
@@ -457,10 +491,42 @@ class LR:
 
 		return best_model['models']
 
-	def __plot_single_eval():
-		# Might not have to do this
-		pass
+	def __plot_histogram_residuals(self, residuals):
 
+		num_bins = 10
+		n, bins, patches = plt.hist(residuals, num_bins, color='red', alpha=0.5)
+		plt.xlabel('Residuals')
+		plt.ylabel('Distribution')
+		plt.title('Histogram of Residuals')
+
+		plt.show()
+
+	def __KSTest(self, residuals):
+
+		print('\n Now it is time for the Kolmogorov-Smirnov test. \n')
+
+		print(stats.kstest(residuals, 'norm', N=len(residuals)))
+
+		if stats.kstest(residuals, 'norm',N=len(residuals))[1] > 0.9:
+			print('\nThere is strong evidence to suggest that we should not reject the null hypothesis, and that the residuals are normally distributed.\n \
+				Therefore we can perform inference with this information with confidence.')
+
+			return 1
+
+		if stats.kstest(residuals, 'norm',N=len(residuals))[1] < 0.1:
+		 	print('\nThere is strong evidence to suggest that we should reject the null hypothesis and that the residuals are NOT normally distributed.\n \
+		 		Therefore, we should not perform inference (t-tests, F-tests, Confidence intervals, etc.)')
+
+		 	return 0
+
+	def __assertKSTest(self,KSscore,model):
+		# determine whether or not we can do confidence intervals, t-tests, F-tests etc. 
+		if KSscore > 0:
+			# if we should not reject the null hypothesis then we do plot the studenized residuals
+			self.__studentizedResiduals(model)
+
+		else:
+			print('\n We will not be plotting the studenized resiuals at this level because the residuals are not normally distributed according to the Kolmogorov-Smirnov test. \n')
 
 	def __plot_model_selection(self,df):
 		#TODO: add arguments 
@@ -564,5 +630,5 @@ class LR:
 
 
 if __name__ == "__main__":
-	x = LR(dataset="loan_data.csv",response="int.rate",selection='forward', prediction=True, eval_metric="RSS", verbose=0)
+	x = LR(dataset="loan_data.csv",response="log.annual.inc",selection='forward', prediction=True, eval_metric="BIC", verbose=0)
 	x
