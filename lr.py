@@ -170,6 +170,8 @@ class LR:
 
 
 
+
+
 		else:
 			print('\n Exhaustive selection is 2^n in complexity. \
 					\n that would require that we would have some sort of threading implemented to do Best Subset Selection \
@@ -405,6 +407,12 @@ class LR:
 		if stats.shapiro(residuals)[1] < 0.05:
 			print("\n Shaprio p-value is {} which is less than 0.05.\
 				\n This means that the non-normality test fails for the residuals of this model.".format(stats.shapiro(residuals)[1]))
+		else if stats.shapiro(residuals)[1] < 0.1 and stats.shapiro(residuals)[1] > 0.05:
+			print("\n Shaprio p-value is {} which is greater than 0.05 and less than 0.1.\
+				\n This means that the non-normality test is questionable for the residuals of this model.".format(stats.shapiro(residuals)[1]))
+		else:
+			print("\n Shaprio p-value is {} which is greater than 0.1.\
+				\n This means that the non-normality test passes for the residuals of this model.".format(stats.shapiro(residuals)[1]))
 
 
 	def __studentizedResiduals(self, model):
