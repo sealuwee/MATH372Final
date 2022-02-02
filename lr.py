@@ -214,7 +214,7 @@ class LR(object):
 		        #drop NA values
 		        df = df.dropna()
 		        #reset the index
-		        df = df[np.isfinite(california).all(1)].reset_index(drop="True")
+		        df = df[np.isfinite().all(1)].reset_index(drop="True")
 		    else:
 		        print('No NaN values found in column : ', col)
 

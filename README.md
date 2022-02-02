@@ -2,6 +2,8 @@
 
 Math 372 final project, hope I get a good grade thanks in advance professor
 
+## Updated : 1/15/2021
+
 ## Introduction
 
 The purpose of this project was to create a function that produces the following information:
